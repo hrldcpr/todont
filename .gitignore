@@ -1,0 +1,7 @@
+top_repos.txt
+contributing/
+eslintrc/
+comments/
+
+__pycache__
+*~
