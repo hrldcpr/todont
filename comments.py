@@ -31,10 +31,14 @@ with open('top_repos.txt') as f:
 logging.info('loaded %d repos', len(repos))
 
 for repo in repos:
-    n = 0
-    comments = get_all_comments(repo)
-    for comment in comments:
-        comment['diff_line'] = comment['diff_hunk'].split('\n')[-1]
+    for _ in range(3):  # retry
+        comments = get_all_comments(repo)
+        try:
+            for comment in comments:
+                comment['diff_line'] = comment['diff_hunk'].split('\n')[-1]
+            break
+        except TypeError:
+            logging.warning('retrying. invalid comment: %s', comment)
     todo_comments = [c for c in comments
                      if c['diff_line'].startswith('+') and TODO_RE.findall(c['diff_line'])]
     logging.info('%s has %d comments and %d todo comments', repo, len(comments), len(todo_comments))
