@@ -6,6 +6,7 @@ import github_api
 logging.basicConfig(level=logging.INFO)
 
 
+RETRIES = 3
 TODO_RE = re.compile(r'\b(TODO|FIXME|XXX)\b', re.IGNORECASE)
 
 def get_all_comments(repo):
@@ -17,12 +18,6 @@ def get_all_comments(repo):
         comments += more
     return comments
 
-def save_comments(repo, comments):
-    path = 'comments/' + repo.replace('/', '-')
-    with open(path, 'w', encoding='utf-8') as f:
-        for c in comments:
-            f.write('{}\n{}\n{}\n\n'.format(c['url'], repr(c['diff_line']), repr(c['body'])))
-
 repos = []
 with open('top_repos.txt') as f:
     for line in f:
@@ -30,16 +25,22 @@ with open('top_repos.txt') as f:
         repos.append(repo)
 logging.info('loaded %d repos', len(repos))
 
-for repo in repos:
-    for _ in range(3):  # retry
-        comments = get_all_comments(repo)
-        try:
-            for comment in comments:
-                comment['diff_line'] = comment['diff_hunk'].split('\n')[-1]
-            break
-        except TypeError:
-            logging.warning('retrying. invalid comment: %s', comment)
-    todo_comments = [c for c in comments
-                     if c['diff_line'].startswith('+') and TODO_RE.findall(c['diff_line'])]
-    logging.info('%s has %d comments and %d todo comments', repo, len(comments), len(todo_comments))
-    if todo_comments: save_comments(repo, todo_comments)
+with open('comments.txt', 'w', encoding='utf-8') as f:
+    for repo in repos:
+        for i in range(RETRIES):  # retry
+            comments = get_all_comments(repo)
+            try:
+                for comment in comments:
+                    comment['diff_line'] = comment['diff_hunk'].split('\n')[-1]
+                break
+            except TypeError as e:
+                if i + 1 < RETRIES: logging.warning('retrying. invalid comment: %s', comment)
+                else: raise e
+
+        todo_comments = [c for c in comments
+                         if c['diff_line'].startswith('+') and TODO_RE.findall(c['diff_line'])]
+        logging.info('%s has %d comments and %d todo comments', repo, len(comments), len(todo_comments))
+
+        for c in todo_comments:
+            f.write('\n'.join((c['url'], c['html_url'], repr(c['diff_line']), repr(c['body']), '', '')))
+        f.flush()
