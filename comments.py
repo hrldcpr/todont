@@ -6,7 +6,7 @@ import github_api
 logging.basicConfig(level=logging.INFO)
 
 
-RETRIES = 3
+ATTEMPTS = 5
 TODO_RE = re.compile(r'\b(TODO|FIXME|XXX)\b', re.IGNORECASE)
 
 def get_all_comments(repo):
@@ -27,14 +27,14 @@ logging.info('loaded %d repos', len(repos))
 
 with open('comments.txt', 'w', encoding='utf-8') as f:
     for repo in repos:
-        for i in range(RETRIES):  # retry
+        for i in range(ATTEMPTS):  # retry
             comments = get_all_comments(repo)
             try:
                 for comment in comments:
                     comment['diff_line'] = comment['diff_hunk'].split('\n')[-1]
                 break
             except TypeError as e:
-                if i + 1 < RETRIES: logging.warning('retrying. invalid comment: %s', comment)
+                if i < ATTEMPTS - 1: logging.warning('retrying %s. invalid comment: %s', repo, comment)
                 else: raise e
 
         todo_comments = [c for c in comments
@@ -42,5 +42,5 @@ with open('comments.txt', 'w', encoding='utf-8') as f:
         logging.info('%s has %d comments and %d todo comments', repo, len(comments), len(todo_comments))
 
         for c in todo_comments:
-            f.write('\n'.join((c['url'], c['html_url'], repr(c['diff_line']), repr(c['body']), '', '')))
+            f.write('\n'.join((c['html_url'], repr(c['diff_line']), repr(c['body']), '', '')))
         f.flush()
